@@ -1,0 +1,16 @@
+[package]
+name = "rusty-text"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+
+[dependencies]
+arboard = "3"
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
+eframe = "0.37"
+egui = { version = "0.37", features = ["monochrome_emoji_fonts"] }
+portable-pty = "0.9.0"
+pulldown-cmark = { version = "0.13.5", default-features = false }
+rfd = "0.17.2"
+serde_json = "1"
+vt100 = "0.18.1"

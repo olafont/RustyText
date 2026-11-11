@@ -1,0 +1,52 @@
+name: Rust
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-latest
+            binary: rusty-text
+          - name: Windows
+            os: windows-latest
+            binary: rusty-text.exe
+          - name: Linux
+            os: ubuntu-latest
+            binary: rusty-text
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev
+
+      - name: Test
+        run: cargo test
+
+      - name: Build release
+        run: cargo build --release
+        env:
+          RUSTFLAGS: ${{ runner.os == 'Windows' && '-C target-feature=+crt-static' || '' }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rusty-text-${{ matrix.name }}
+          path: target/release/${{ matrix.binary }}
