@@ -1,0 +1,107 @@
+# Builds the downloads of a release and attaches them to it: the macOS app for Apple silicon
+# and for Intel, and the Windows and Linux programs.
+#
+# Runs when a version tag is pushed (`git tag v0.2.0 && git push origin v0.2.0`), which
+# includes creating a release for a new tag on GitHub. If the tag has no release yet, one is
+# created with generated notes.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macos-apple-silicon, os: macos-latest, target: aarch64-apple-darwin }
+          - { name: macos-intel, os: macos-latest, target: x86_64-apple-darwin }
+          - { name: windows-x64, os: windows-latest, target: x86_64-pc-windows-msvc }
+          - { name: linux-x64, os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev
+
+      # RustyText.app, signed ad hoc (no Apple Developer ID).
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
+        run: scripts/bundle.sh --target ${{ matrix.target }}
+
+      - name: Build (Windows, Linux)
+        if: runner.os != 'macOS'
+        run: cargo build --release --locked --target ${{ matrix.target }}
+        env:
+          RUSTFLAGS: ${{ runner.os == 'Windows' && '-C target-feature=+crt-static' || '' }}
+
+      # Each archive holds the app, the manual, the license and the third-party notices.
+      - name: Package
+        shell: bash
+        run: |
+          DIR="RustyText-${GITHUB_REF_NAME#v}-${{ matrix.name }}"
+          mkdir -p "dist/$DIR"
+          cp LICENSE THIRD_PARTY_NOTICES.md docs/USER_MANUAL.md "dist/$DIR/"
+          case "$RUNNER_OS" in
+            macOS)
+              ditto target/RustyText.app "dist/$DIR/RustyText.app"
+              (cd dist && ditto -c -k --keepParent "$DIR" "$DIR.zip")
+              ;;
+            Windows)
+              cp "target/${{ matrix.target }}/release/rusty-text.exe" "dist/$DIR/RustyText.exe"
+              (cd dist && 7z a "$DIR.zip" "$DIR" >/dev/null)
+              ;;
+            Linux)
+              cp "target/${{ matrix.target }}/release/rusty-text" "dist/$DIR/"
+              (cd dist && tar czf "$DIR.tar.gz" "$DIR")
+              ;;
+          esac
+          rm -rf "dist/$DIR"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Attach to the release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        run: cd dist && sha256sum RustyText-* > SHA256SUMS.txt && cat SHA256SUMS.txt
+
+      - name: Upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --title "RustyText ${GITHUB_REF_NAME#v}" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" dist/* --clobber

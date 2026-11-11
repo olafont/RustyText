@@ -1,3 +1,5 @@
+# Tests and builds on every push, for each system the app runs on. The binaries are attached
+# to the run as artifacts. Releases are made by release.yml.
 name: Rust
 
 on:
@@ -14,14 +16,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: macOS
+          - name: macOS-apple-silicon
             os: macos-latest
+            target: aarch64-apple-darwin
             binary: rusty-text
+          # Built on the same Apple silicon machine, for Intel Macs. It can't run there, so
+          # the tests run for Apple silicon only.
+          - name: macOS-intel
+            os: macos-latest
+            target: x86_64-apple-darwin
+            binary: rusty-text
+            skip_tests: true
           - name: Windows
             os: windows-latest
+            target: x86_64-pc-windows-msvc
             binary: rusty-text.exe
           - name: Linux
             os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
             binary: rusty-text
     env:
       CARGO_TERM_COLOR: always
@@ -29,8 +41,12 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -39,14 +55,16 @@ jobs:
           sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev
 
       - name: Test
-        run: cargo test
+        if: ${{ !matrix.skip_tests }}
+        run: cargo test --target ${{ matrix.target }}
 
       - name: Build release
-        run: cargo build --release
+        run: cargo build --release --target ${{ matrix.target }}
         env:
           RUSTFLAGS: ${{ runner.os == 'Windows' && '-C target-feature=+crt-static' || '' }}
 
       - uses: actions/upload-artifact@v4
         with:
           name: rusty-text-${{ matrix.name }}
-          path: target/release/${{ matrix.binary }}
+          path: target/${{ matrix.target }}/release/${{ matrix.binary }}
+          if-no-files-found: error

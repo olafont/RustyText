@@ -1,19 +1,41 @@
 #!/bin/sh
 # Builds "RustyText.app" and optionally installs it.
-#   scripts/bundle.sh            -> target/RustyText.app
-#   scripts/bundle.sh --install  -> also copies it to /Applications
+#   scripts/bundle.sh                    -> target/RustyText.app, for this Mac
+#   scripts/bundle.sh --install          -> also copies it to /Applications
+#   scripts/bundle.sh --target <triple>  -> for another kind of Mac:
+#                                           aarch64-apple-darwin (Apple silicon) or x86_64-apple-darwin (Intel)
 set -e
 cd "$(dirname "$0")/.."
 
 NAME="RustyText"
 APP="target/$NAME.app"
+INSTALL=0
+TARGET=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --install) INSTALL=1 ;;
+        --target) TARGET="$2"; shift ;;
+        *) echo "unknown option: $1" >&2; exit 2 ;;
+    esac
+    shift
+done
 
-cargo build --release
+if [ -n "$TARGET" ]; then
+    rustup target add "$TARGET" >/dev/null
+    cargo build --release --target "$TARGET"
+    BINARY="target/$TARGET/release/rusty-text"
+else
+    cargo build --release
+    BINARY="target/release/rusty-text"
+fi
+VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 # The program inside the bundle is named after the app, not the crate: macOS builds the
 # application menu from the process name ("About RustyText", "Quit RustyText").
-cp target/release/rusty-text "$APP/Contents/MacOS/$NAME"
+cp "$BINARY" "$APP/Contents/MacOS/$NAME"
+# The license and the notices travel with the app (GPL-3.0 section 4).
+cp LICENSE THIRD_PARTY_NOTICES.md "$APP/Contents/Resources/"
 
 # assets/icon.png (1024px) -> AppIcon.icns with every size macOS asks for.
 ICONSET=target/AppIcon.iconset
@@ -35,8 +57,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleExecutable</key><string>$NAME</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.1</string>
-    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleShortVersionString</key><string>$VERSION</string>
+    <key>CFBundleVersion</key><string>$VERSION</string>
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSHumanReadableCopyright</key><string>Copyright © 2026 Olivier Lafont. GNU General Public License version 3.</string>
@@ -47,7 +69,7 @@ PLIST
 codesign --force --sign - "$APP"
 echo "Built $APP"
 
-if [ "$1" = "--install" ]; then
+if [ "$INSTALL" = 1 ]; then
     rm -rf "/Applications/$NAME.app"
     cp -R "$APP" /Applications/
     echo "Installed /Applications/$NAME.app"

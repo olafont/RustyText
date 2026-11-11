@@ -67,6 +67,8 @@ while it is on.
     scripts/bundle.sh --install
 
 Builds `RustyText.app` (with the icon from `assets/icon.png`) into `/Applications`.
+`scripts/bundle.sh --target x86_64-apple-darwin` builds it for Intel Macs instead (and
+`aarch64-apple-darwin` for Apple silicon), into `target/RustyText.app`.
 Re-run after code changes. `assets/icon-256.png` is the copy compiled into the binary.
 Both PNGs are rendered from `assets/icon.svg`: run `scripts/render-icon.sh` after changing it
 (needs Google Chrome).
@@ -80,10 +82,17 @@ Both PNGs are rendered from `assets/icon.svg`: run `scripts/render-icon.sh` afte
 Produces `target/x86_64-pc-windows-msvc/release/rusty-text.exe`, a single file with no
 installer. The first run downloads the Windows SDK and asks you to accept Microsoft's license.
 
-## CI
+## CI and releases
 
-`.github/workflows/rust.yml` tests and builds on macOS, Windows and Linux for every push,
-and attaches each binary to the run as an artifact.
+`.github/workflows/rust.yml` tests and builds for every push: macOS for Apple silicon and for
+Intel, Windows and Linux. Each binary is attached to the run as an artifact. (The Intel build
+is made on an Apple silicon machine, so the tests run for Apple silicon only.)
+
+`.github/workflows/release.yml` builds the downloads of a release when a version tag is pushed,
+and attaches them to it: `RustyText.app` for Apple silicon and for Intel, and the Windows and
+Linux programs, each with the manual, the license and the notices.
+
+    git tag v0.2.0 && git push origin v0.2.0
 
 ## Layout
 
