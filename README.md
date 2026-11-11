@@ -7,6 +7,8 @@ Runs on macOS, Windows and Linux.
     cargo run --release -- [file ...]
     cargo test
 
+How to use it: [docs/USER_MANUAL.md](docs/USER_MANUAL.md).
+
 ## Features
 
 - On macOS the app draws its title bar: the traffic lights, the app's name, then the menus
@@ -106,3 +108,16 @@ and attaches each binary to the run as an artifact.
 - Case-insensitive find only folds ASCII letters.
 - Emojis render in black and white: egui has no colour emoji support.
 - The binary is ~14 MB: egui, its renderer and fonts are compiled in.
+
+## License
+
+Copyright © 2026 Olivier Lafont.
+
+This program is free software: you can redistribute it and/or modify it under the terms of the
+GNU General Public License version 3, as published by the Free Software Foundation. It is
+distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See [LICENSE](LICENSE).
+
+Anyone who distributes it, changed or not, must do so under the same license and with its
+source code. Third-party code and designs are listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

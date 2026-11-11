@@ -3,6 +3,8 @@ name = "rusty-text"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.99"
+license = "GPL-3.0-only"
+description = "A small text editor"
 
 [dependencies]
 arboard = "3"
