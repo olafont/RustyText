@@ -69,6 +69,8 @@ while it is on.
 Builds `RustyText.app` (with the icon from `assets/icon.png`) into `/Applications`.
 `scripts/bundle.sh --target x86_64-apple-darwin` builds it for Intel Macs instead (and
 `aarch64-apple-darwin` for Apple silicon), into `target/RustyText.app`.
+The app declares itself an editor of Markdown files, so the Finder offers it under *Open with*
+for `.md` files; Get Info ▸ Open with ▸ Change All… makes it their default app.
 Re-run after code changes. `assets/icon-256.png` is the copy compiled into the binary.
 Both PNGs are rendered from `assets/icon.svg`: run `scripts/render-icon.sh` after changing it
 (needs Google Chrome).
@@ -99,6 +101,7 @@ Linux programs, each with the manual, the license and the notices.
 - `src/main.rs` — parses arguments, opens the window
 - `src/title_bar.rs` — the app-drawn title bar on macOS: traffic lights, app name, menus (tested)
 - `src/app.rs` — UI: title bar and menus, tabs, editor + line-number gutter, find bar, status bar, dialogs
+- `src/open_requests.rs` — files macOS asks the app to open (Finder double-click, Dock drop)
 - `src/document.rs` — one open file: load, save, dirty flag
 - `src/notes.rs` — your notes file: where it lives and the daily date line (tested)
 - `src/settings.rs` — your preferences: theme, language, default folder, and their file (tested)

@@ -58,6 +58,11 @@ To open files as it starts, give them on the command line:
 
 A file that does not exist yet opens empty and is created the first time you save it.
 
+On macOS, RustyText can be the app that opens your Markdown files when you double-click
+them. In the Finder, select a `.md` file, choose File ▸ Get Info, pick RustyText under
+*Open with*, and click *Change All…*. A file opened this way while RustyText is running
+becomes a tab of its main window.
+
 ## 2. The window
 
 From top to bottom:
@@ -91,7 +96,7 @@ are open. File ▸ Quit (⌘Q) does the same from any window.
 | To | Do |
 | --- | --- |
 | Start a new document | File ▸ New (⌘N) |
-| Open files | File ▸ Open… (⌘O), and pick one or several; or drag files onto the window |
+| Open files | File ▸ Open… (⌘O), and pick one or several; or drag files onto the window. On macOS, also: double-click a Markdown file ([First run](#first-run)), or drop it on the Dock icon |
 | Save | File ▸ Save (⌘S) |
 | Save under another name | File ▸ Save As… (⇧⌘S) |
 | Close the tab | File ▸ Close (⌘W), or the tab's × |

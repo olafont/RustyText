@@ -1270,6 +1270,15 @@ impl eframe::App for EditorApp {
 
         self.serve_agents(&ctx);
 
+        // Files opened from the Finder while the app runs go to the main window, in front.
+        let requested = crate::open_requests::take();
+        if !requested.is_empty() {
+            for path in requested {
+                self.windows[0].open_path(path);
+            }
+            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        }
+
         let notes_open = self.windows.iter().any(|window| window.docs.iter().any(|doc| doc.notes));
         for window in &mut self.windows {
             window.notes_open = notes_open;

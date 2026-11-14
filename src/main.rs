@@ -10,6 +10,7 @@ mod glow;
 mod i18n;
 mod mcp;
 mod notes;
+mod open_requests;
 mod settings;
 mod terminal;
 mod text_utils;
@@ -22,6 +23,7 @@ use eframe::egui;
 
 fn main() -> eframe::Result {
     settings::load();
+    open_requests::install();
     // Files passed on the command line: `rusty-text foo.txt bar.rs`.
     // Skip argv[0] (the program itself) and flags like the `-psn_…` macOS may add.
     // With none, the window starts with an empty untitled document.
@@ -57,6 +59,10 @@ fn main() -> eframe::Result {
                     font.size += 1.0;
                 }
             });
+            // Files double-clicked in the Finder come after those of the command line.
+            open_requests::wake(&creation_context.egui_ctx);
+            let mut paths = paths;
+            paths.extend(open_requests::take());
             Ok(Box::new(app::EditorApp::new(paths)))
         }),
     )
