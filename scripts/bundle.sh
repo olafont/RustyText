@@ -70,6 +70,13 @@ cat > "$APP/Contents/Info.plist" <<PLIST
             <key>LSItemContentTypes</key>
             <array><string>net.daringfireball.markdown</string></array>
         </dict>
+        <dict>
+            <key>CFBundleTypeName</key><string>Text document</string>
+            <key>CFBundleTypeRole</key><string>Editor</string>
+            <key>LSHandlerRank</key><string>Default</string>
+            <key>LSItemContentTypes</key>
+            <array><string>public.plain-text</string></array>
+        </dict>
     </array>
     <key>NSHumanReadableCopyright</key><string>Copyright © 2026 Olivier Lafont. GNU General Public License version 3.</string>
 </dict>

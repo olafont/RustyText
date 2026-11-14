@@ -69,8 +69,9 @@ while it is on.
 Builds `RustyText.app` (with the icon from `assets/icon.png`) into `/Applications`.
 `scripts/bundle.sh --target x86_64-apple-darwin` builds it for Intel Macs instead (and
 `aarch64-apple-darwin` for Apple silicon), into `target/RustyText.app`.
-The app declares itself an editor of Markdown files, so the Finder offers it under *Open with*
-for `.md` files; Get Info ▸ Open with ▸ Change All… makes it their default app.
+The app declares itself an editor of Markdown and plain text files, so the Finder offers it
+under *Open with* for `.md` and `.txt` files; Get Info ▸ Open with ▸ Change All… makes it their
+default app.
 Re-run after code changes. `assets/icon-256.png` is the copy compiled into the binary.
 Both PNGs are rendered from `assets/icon.svg`: run `scripts/render-icon.sh` after changing it
 (needs Google Chrome).
