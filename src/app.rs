@@ -17,7 +17,7 @@ use eframe::egui::{self, Key, KeyboardShortcut, Modifiers};
 use egui::text::{CCursor, CCursorRange};
 use egui::text_edit::TextEditState;
 
-use crate::document::Document;
+use crate::document::{DiskChange, Document};
 use crate::tools::{self, TextTool};
 use crate::terminal::Terminal;
 use crate::i18n::{tr, tr_fill};
@@ -67,6 +67,8 @@ enum Action {
 
 /// How long after the notes change they are saved.
 const AUTOSAVE_DELAY: Duration = Duration::from_secs(1);
+/// How often the open files are checked for changes made by other programs.
+const DISK_CHECK_INTERVAL: Duration = Duration::from_secs(1);
 
 /// How many lines tall the terminal pane is when it first opens.
 const TERMINAL_START_ROWS: u16 = 5;
@@ -124,6 +126,8 @@ fn shortcut_for(action: Action) -> Option<KeyboardShortcut> {
 enum Dialog {
     GoToLine { input: String },
     ConfirmClose { tab: usize },
+    /// Another program changed the file of a document that has unsaved changes.
+    ChangedOnDisk { doc: u64, title: String },
     Error(String),
     WordCount { of_selection: bool, stats: tools::Stats },
     /// Theme, language and default folder. Changes apply as they are made.
@@ -135,6 +139,8 @@ enum Choice {
     GoTo(usize),
     Save(usize),
     Discard(usize),
+    /// Take the file's new text, by document id.
+    Reload(u64),
     Cancel,
 }
 
@@ -176,6 +182,8 @@ struct EditorWindow {
     /// Why agents can't connect although Preferences allow it (set by `EditorApp` every frame).
     agent_server_error: Option<String>,
     window_title: String,
+    /// When to look next for files changed by other programs.
+    next_disk_check: Instant,
 }
 
 impl EditorWindow {
@@ -196,6 +204,7 @@ impl EditorWindow {
             notes_open: false,
             agent_server_error: None,
             window_title: String::new(),
+            next_disk_check: Instant::now(),
         };
         for path in paths {
             window.open_path(path);
@@ -465,6 +474,36 @@ impl EditorWindow {
             } else if !self.save(index, false) {
                 // Don't retry every frame; the next edit tries again.
                 self.docs[index].autosave_at = Some(Instant::now() + Duration::from_secs(3600));
+            }
+        }
+    }
+
+    /// Shows what other programs wrote to the open files: looks at them once a second.
+    fn follow_files_on_disk(&mut self, ctx: &egui::Context) {
+        let now = Instant::now();
+        if now < self.next_disk_check {
+            ctx.request_repaint_after(self.next_disk_check - now);
+            return;
+        }
+        self.next_disk_check = now + DISK_CHECK_INTERVAL;
+        ctx.request_repaint_after(DISK_CHECK_INTERVAL); // wake up to look even if idle
+        self.check_files_on_disk(ctx);
+    }
+
+    fn check_files_on_disk(&mut self, ctx: &egui::Context) {
+        for index in 0..self.docs.len() {
+            // One question at a time; the files not looked at now are looked at once it is answered.
+            if self.dialog.is_some() || self.closing {
+                break;
+            }
+            let doc = &mut self.docs[index];
+            match doc.check_disk() {
+                DiskChange::None => {}
+                DiskChange::Reloaded => agent_tools::store_cursor(ctx, doc),
+                DiskChange::Conflict => {
+                    self.dialog = Some(Dialog::ChangedOnDisk { doc: doc.id, title: doc.title() });
+                    self.active = index;
+                }
             }
         }
     }
@@ -885,6 +924,19 @@ impl EditorWindow {
                         }
                     });
                 }
+                Dialog::ChangedOnDisk { doc, title } => {
+                    ui.heading(tr_fill("“{}” was changed by another program", &[title]));
+                    ui.label(tr("You have unsaved changes in it. Reloading replaces them with the file’s new text."));
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        if ui.button(tr("Keep My Changes")).clicked() {
+                            choice = Some(Choice::Cancel);
+                        }
+                        if ui.button(tr("Reload")).clicked() {
+                            choice = Some(Choice::Reload(*doc));
+                        }
+                    });
+                }
                 Dialog::Error(message) => {
                     ui.label(message.as_str());
                     if ui.button(tr("OK")).clicked() {
@@ -997,6 +1049,14 @@ impl EditorWindow {
                 }
             }
             Some(Choice::Discard(tab)) => self.remove_tab(tab),
+            Some(Choice::Reload(id)) => {
+                if let Some(doc) = self.docs.iter_mut().find(|doc| doc.id == id) {
+                    match doc.reload() {
+                        Ok(()) => agent_tools::store_cursor(ctx, doc),
+                        Err(e) => failure = Some(tr_fill("Couldn’t open {}: {}", &[&doc.title(), &e.to_string()])),
+                    }
+                }
+            }
             Some(Choice::Cancel) => self.closing = false,
         }
         if let Some(message) = failure {
@@ -1171,6 +1231,7 @@ impl EditorWindow {
             }
         }
         self.autosave_notes(&ctx);
+        self.follow_files_on_disk(&ctx);
         self.continue_closing();
         self.update_window_title(&ctx);
         app_actions
@@ -1489,6 +1550,41 @@ mod tests {
         assert!(EditorWindow::new(1, vec![markdown.clone()]).glow_visible(), "also at startup");
         std::fs::remove_file(&text).unwrap();
         std::fs::remove_file(&markdown).unwrap();
+    }
+
+    #[test]
+    fn a_file_changed_by_another_program_shows_in_its_tab() {
+        let ctx = egui::Context::default();
+        let dir = std::env::temp_dir();
+        let clean = dir.join(format!("rusty-text-follow-clean-{}.txt", std::process::id()));
+        let edited = dir.join(format!("rusty-text-follow-edited-{}.txt", std::process::id()));
+        std::fs::write(&clean, "before\n").unwrap();
+        std::fs::write(&edited, "before\n").unwrap();
+        let mut window = EditorWindow::new(0, vec![edited.clone(), clean.clone()]);
+        draw(&mut window, &ctx);
+        assert!(window.dialog.is_none());
+
+        window.docs[0].text = "my edit\n".to_owned();
+        window.docs[0].dirty = true;
+        std::fs::write(&clean, "after, by another program\n").unwrap();
+        std::fs::write(&edited, "after, by another program\n").unwrap();
+        window.check_files_on_disk(&ctx);
+
+        // The tab with unsaved changes asks, and comes to the front; the other one waits.
+        assert!(matches!(window.dialog, Some(Dialog::ChangedOnDisk { .. })));
+        assert_eq!(window.active, 0);
+        assert_eq!(window.docs[0].text, "my edit\n");
+        assert_eq!(window.docs[1].text, "before\n");
+
+        // Once answered (here: keep my changes), the tab without unsaved changes follows the file.
+        window.dialog = None;
+        window.check_files_on_disk(&ctx);
+        assert!(window.dialog.is_none(), "asked once");
+        assert_eq!(window.docs[0].text, "my edit\n");
+        assert_eq!(window.docs[1].text, "after, by another program\n");
+
+        std::fs::remove_file(&clean).unwrap();
+        std::fs::remove_file(&edited).unwrap();
     }
 
     #[test]

@@ -107,6 +107,11 @@ an untouched empty document replaces that tab.
 Closing a tab with unsaved changes asks whether to **Save**, **Don't Save** or **Cancel**.
 Cancel also stops a quit that was under way.
 
+When another program changes a file that is open, its tab shows the new text within a
+second or so. If you have unsaved changes in that tab, RustyText asks instead: **Reload**
+replaces them with the file's new text, **Keep My Changes** leaves the tab as it is (saving
+then writes your version over the file). A file that another program deletes stays open.
+
 Saving writes to a temporary file first and then puts it in place of the old one, so a save
 that fails never leaves you with half a file.
 

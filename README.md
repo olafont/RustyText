@@ -14,6 +14,7 @@ How to use it: [docs/USER_MANUAL.md](docs/USER_MANUAL.md).
 - On macOS the app draws its title bar: the traffic lights, the app's name, then the menus
 - Tabs: New / Open / Close (⌘N ⌘O ⌘W), New Window (⇧⌘N), Save / Save As (⌘S ⇧⌘S),
   unsaved-changes prompts, drag and drop files onto the window
+- Files changed by another program reload on their own (it asks first if you have unsaved changes)
 - Line-number gutter, monospaced font, soft wrap
 - Find & Replace (⌘F, ⌥⌘F, ⌘G, ⇧⌘G, ⌘E), Go to Line (⌘J)
 - Status bar: line, column, line count, char count

@@ -163,7 +163,7 @@ fn replace_range(doc: &mut Document, range: Range<usize>, new_text: &str) {
 
 /// Tells egui where the document's cursor now is. The editor keeps its own
 /// copy, which would otherwise win and still point at the old place.
-fn store_cursor(ctx: &egui::Context, doc: &Document) {
+pub(super) fn store_cursor(ctx: &egui::Context, doc: &Document) {
     let id = editor_id(doc);
     let mut state = TextEditState::load(ctx, id).unwrap_or_default();
     let (start, end) = (CCursor::new(doc.selection.start), CCursor::new(doc.selection.end));

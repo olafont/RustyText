@@ -5,12 +5,32 @@ use std::io;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 
 use crate::i18n::tr;
 use crate::{notes, text_utils};
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
+
+/// What a file looks like from the outside: when it was last written, and its size.
+/// It changes when another program writes the file.
+type DiskStamp = (SystemTime, u64);
+
+fn disk_stamp(path: &Path) -> Option<DiskStamp> {
+    let metadata = fs::metadata(path).ok()?;
+    Some((metadata.modified().ok()?, metadata.len()))
+}
+
+/// What `Document::check_disk` found.
+#[derive(Debug, PartialEq)]
+pub enum DiskChange {
+    /// The file is as the document last read or wrote it (or says the same as the document).
+    None,
+    /// Another program changed the file, and the document now shows the new text.
+    Reloaded,
+    /// Another program changed the file, and the document has unsaved changes of its own.
+    Conflict,
+}
 
 pub struct Document {
     /// Unique per document; keys egui's per-editor state (cursor, undo history).
@@ -24,6 +44,8 @@ pub struct Document {
     pub notes: bool,
     /// When the notes' unsaved changes are due to be saved.
     pub autosave_at: Option<Instant>,
+    /// The file as this document last read or wrote it; `None` if it wasn't there.
+    on_disk: Option<DiskStamp>,
 }
 
 impl Document {
@@ -39,6 +61,7 @@ impl Document {
             Err(e) => return Err(e),
         };
         let mut doc = Self::new(Some(path.to_path_buf()), text);
+        doc.on_disk = disk_stamp(path);
         doc.notes = doc.is_notes_file();
         Ok(doc)
     }
@@ -52,7 +75,50 @@ impl Document {
             selection: 0..0,
             notes: false,
             autosave_at: None,
+            on_disk: None,
         }
+    }
+
+    /// Looks whether another program changed the file since the document last read or
+    /// wrote it. A document without unsaved changes takes the new text. One with unsaved
+    /// changes is left alone and reports a conflict, once per change of the file.
+    pub fn check_disk(&mut self) -> DiskChange {
+        let Some(path) = &self.path else { return DiskChange::None };
+        let now = disk_stamp(path);
+        if now == self.on_disk {
+            return DiskChange::None;
+        }
+        // Whatever comes next, this state of the file has been seen. A file that was
+        // deleted, or can no longer be read as text, leaves the document as it is.
+        self.on_disk = now;
+        let Some(text) = now.and_then(|_| fs::read_to_string(path).ok()) else { return DiskChange::None };
+        if text == self.text {
+            self.dirty = false; // the file says what the document says
+            DiskChange::None
+        } else if self.dirty {
+            DiskChange::Conflict
+        } else {
+            self.set_text_from_disk(text);
+            DiskChange::Reloaded
+        }
+    }
+
+    /// Replaces the text, unsaved changes included, with what the file says now.
+    pub fn reload(&mut self) -> io::Result<()> {
+        let Some(path) = self.path.clone() else { return Ok(()) };
+        let text = fs::read_to_string(&path)?;
+        self.on_disk = disk_stamp(&path);
+        self.set_text_from_disk(text);
+        Ok(())
+    }
+
+    fn set_text_from_disk(&mut self, text: String) {
+        self.text = text;
+        self.dirty = false;
+        self.autosave_at = None;
+        // The cursor stays where it was, or at the end of a text that got shorter.
+        let length = self.text.chars().count();
+        self.selection = self.selection.start.min(length)..self.selection.end.min(length);
     }
 
     pub fn selected_text(&self) -> &str {
@@ -84,6 +150,7 @@ impl Document {
         tmp.push(".rusty-text-tmp");
         fs::write(&tmp, &self.text)?;
         fs::rename(&tmp, &path)?;
+        self.on_disk = disk_stamp(&path);
         self.path = Some(path);
         self.dirty = false;
         self.autosave_at = None;
@@ -107,6 +174,54 @@ impl Document {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_file_changed_by_another_program_is_reloaded_or_reported() {
+        let path = std::env::temp_dir().join(format!("rusty-text-test-disk-{}.txt", std::process::id()));
+        fs::write(&path, "one\n").unwrap();
+        let mut doc = Document::open(&path).unwrap();
+        doc.selection = 4..4;
+        assert_eq!(doc.check_disk(), DiskChange::None, "nothing changed");
+
+        // No unsaved changes: the document takes the new text.
+        fs::write(&path, "1\n").unwrap();
+        assert_eq!(doc.check_disk(), DiskChange::Reloaded);
+        assert_eq!(doc.text, "1\n");
+        assert_eq!(doc.selection, 2..2, "the cursor stays inside the shorter text");
+        assert!(!doc.dirty);
+        assert_eq!(doc.check_disk(), DiskChange::None, "only once");
+
+        // Its own save is not a change by another program.
+        doc.text = "one and a half\n".to_owned();
+        doc.save_to(path.clone()).unwrap();
+        assert_eq!(doc.check_disk(), DiskChange::None);
+
+        // Unsaved changes: the document keeps them and reports the conflict, once.
+        doc.text = "mine\n".to_owned();
+        doc.dirty = true;
+        fs::write(&path, "theirs, longer\n").unwrap();
+        assert_eq!(doc.check_disk(), DiskChange::Conflict);
+        assert_eq!(doc.text, "mine\n");
+        assert!(doc.dirty);
+        assert_eq!(doc.check_disk(), DiskChange::None, "asked once");
+
+        // Reloading on request drops them.
+        doc.reload().unwrap();
+        assert_eq!(doc.text, "theirs, longer\n");
+        assert!(!doc.dirty);
+
+        // The file now says what the unsaved document says: nothing left to save.
+        doc.text = "same in both\n".to_owned();
+        doc.dirty = true;
+        fs::write(&path, "same in both\n").unwrap();
+        assert_eq!(doc.check_disk(), DiskChange::None);
+        assert!(!doc.dirty);
+
+        // A deleted file leaves the document as it is.
+        fs::remove_file(&path).unwrap();
+        assert_eq!(doc.check_disk(), DiskChange::None);
+        assert_eq!(doc.text, "same in both\n");
+    }
 
     #[test]
     fn saving_creates_missing_folders() {

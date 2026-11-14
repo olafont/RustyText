@@ -110,6 +110,13 @@ const FRENCH: &[(&str, &str)] = &[
     ("Cancel", "Annuler"),
     ("Save changes to “{}” before closing?", "Enregistrer les modifications de « {} » avant de fermer ?"),
     ("Don’t Save", "Ne pas enregistrer"),
+    ("“{}” was changed by another program", "« {} » a été modifié par un autre programme"),
+    (
+        "You have unsaved changes in it. Reloading replaces them with the file’s new text.",
+        "Vous y avez des modifications non enregistrées. Recharger les remplace par le nouveau texte du fichier.",
+    ),
+    ("Keep My Changes", "Garder mes modifications"),
+    ("Reload", "Recharger"),
     ("OK", "OK"),
     ("Word Count", "Nombre de mots"),
     ("Word Count (selection)", "Nombre de mots (sélection)"),
