@@ -197,9 +197,11 @@ mod tests {
         assert_eq!(doc.check_disk(), DiskChange::None);
 
         // Unsaved changes: the document keeps them and reports the conflict, once.
+        // (Every text here differs in length from the one before it: a file rewritten
+        // within the same tick of the clock is only told apart by its size.)
         doc.text = "mine\n".to_owned();
         doc.dirty = true;
-        fs::write(&path, "theirs, longer\n").unwrap();
+        fs::write(&path, "theirs, and longer\n").unwrap();
         assert_eq!(doc.check_disk(), DiskChange::Conflict);
         assert_eq!(doc.text, "mine\n");
         assert!(doc.dirty);
@@ -207,7 +209,7 @@ mod tests {
 
         // Reloading on request drops them.
         doc.reload().unwrap();
-        assert_eq!(doc.text, "theirs, longer\n");
+        assert_eq!(doc.text, "theirs, and longer\n");
         assert!(!doc.dirty);
 
         // The file now says what the unsaved document says: nothing left to save.
