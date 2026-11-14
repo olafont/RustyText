@@ -20,7 +20,7 @@ How to use it: [docs/USER_MANUAL.md](docs/USER_MANUAL.md).
 - Right-click menu in the text: cut/copy/paste, text tools, word count
 - Edit ▸ Emoji: emoji grids by category
 - Tools: Change Case / Lines / Whitespace transforms (undoable), Word Count…
-- Tools ▸ Markdown: rendered Markdown pane beside the editor (`.md` files)
+- Tools ▸ Markdown: rendered Markdown pane beside the editor (`.md` files), shown when you open one
 - Tools ▸ Terminal (⌃`): your shell in a pane under the editor
 - Forever Note: a running log that is always there (below)
 - Preferences (the ⚙ at the right of the title bar, or ⌘,): theme, language and default folder (below)

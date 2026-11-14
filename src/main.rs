@@ -21,6 +21,9 @@ use std::path::PathBuf;
 
 use eframe::egui;
 
+/// The size a window opens at, in points: room for the editor and the Markdown pane side by side.
+const WINDOW_SIZE: [f32; 2] = [1374.0, 800.0];
+
 fn main() -> eframe::Result {
     settings::load();
     open_requests::install();
@@ -41,7 +44,7 @@ fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: title_bar::viewport(egui::ViewportBuilder::default())
             .with_title("RustyText")
-            .with_inner_size([800.0, 600.0])
+            .with_inner_size(WINDOW_SIZE)
             .with_drag_and_drop(true)
             .with_icon(icon),
         ..Default::default()

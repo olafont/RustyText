@@ -199,6 +199,8 @@ links, on a dark background. It follows what you type.
 
 - It is available for Markdown files: those ending in `.md`, `.markdown`, `.mdown` or `.mkd`.
   For other files the menu item is greyed out. Save a new document under such a name first.
+- Opening a Markdown file turns the pane on. Switching to a file that is already open
+  leaves it as you set it.
 - The pane starts at half the window's width. Drag its left edge to resize it.
 - Images are not shown; their place and address are.
 - Choose Tools ▸ Markdown again to hide it. While it is on, it shows whenever you switch to a

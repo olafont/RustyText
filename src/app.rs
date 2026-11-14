@@ -399,6 +399,10 @@ impl EditorWindow {
                     }
                     self.docs.push(doc);
                     self.active = self.docs.len() - 1;
+                    // A Markdown file opens with its rendered pane beside it.
+                    if self.is_markdown() {
+                        self.glow = true;
+                    }
                 }
                 Err(e) => {
                     self.dialog = Some(Dialog::Error(tr_fill("Couldn’t open {}: {}", &[&path.display().to_string(), &e.to_string()])));
@@ -1292,7 +1296,7 @@ impl eframe::App for EditorApp {
             let viewport = viewport_id(window);
             let builder = title_bar::viewport(egui::ViewportBuilder::default())
                 .with_title("RustyText")
-                .with_inner_size([800.0, 600.0])
+                .with_inner_size(crate::WINDOW_SIZE)
                 .with_drag_and_drop(true);
             // "Immediate" viewports are drawn right here, so the closure can borrow `window`.
             ctx.show_viewport_immediate(viewport, builder, |ui, _class| {
@@ -1461,6 +1465,30 @@ mod tests {
         std::fs::remove_file(&path).unwrap();
         assert_eq!(window.active, 2);
         assert!(editor_has_focus(&window, &ctx), "after Open");
+    }
+
+    #[test]
+    fn opening_a_markdown_file_shows_the_markdown_pane() {
+        let dir = std::env::temp_dir();
+        let text = dir.join(format!("rusty-text-pane-{}.txt", std::process::id()));
+        let markdown = dir.join(format!("rusty-text-pane-{}.md", std::process::id()));
+        std::fs::write(&text, "plain\n").unwrap();
+        std::fs::write(&markdown, "# Title\n").unwrap();
+
+        let mut window = EditorWindow::new(0, vec![text.clone()]);
+        assert!(!window.glow, "a text file leaves the pane off");
+        window.open_path(markdown.clone());
+        assert!(window.glow_visible(), "a Markdown file turns it on");
+
+        // Turned off by hand, it stays off when switching back to the tab.
+        window.glow = false;
+        window.open_path(text.clone());
+        window.open_path(markdown.clone());
+        assert!(!window.glow, "an already open file doesn't turn it back on");
+
+        assert!(EditorWindow::new(1, vec![markdown.clone()]).glow_visible(), "also at startup");
+        std::fs::remove_file(&text).unwrap();
+        std::fs::remove_file(&markdown).unwrap();
     }
 
     #[test]
