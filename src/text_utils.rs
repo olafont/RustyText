@@ -69,6 +69,29 @@ pub fn find(text: &str, query: &str, from: usize, forward: bool, match_case: boo
     found.map(|start| byte_to_char(text, start)..byte_to_char(text, start + needle.len()))
 }
 
+/// Every occurrence of `query` among the characters `within` of the text, as char ranges.
+pub fn find_all(text: &str, query: &str, within: Range<usize>, match_case: bool) -> Vec<Range<usize>> {
+    if query.is_empty() {
+        return Vec::new();
+    }
+    let window = &text[char_to_byte(text, within.start)..char_to_byte(text, within.end)];
+    // Lowercasing ASCII only keeps every character at the same byte offset.
+    let (hay, needle) = if match_case {
+        (window.to_owned(), query.to_owned())
+    } else {
+        (window.to_ascii_lowercase(), query.to_ascii_lowercase())
+    };
+    let mut found = Vec::new();
+    let (mut chars_before, mut bytes_before) = (within.start, 0);
+    for (byte, _) in hay.match_indices(&needle) {
+        let start = chars_before + window[bytes_before..byte].chars().count();
+        let end = start + query.chars().count();
+        found.push(start..end);
+        (chars_before, bytes_before) = (end, byte + needle.len());
+    }
+    found
+}
+
 /// Does the text in char range `range` equal `query`?
 pub fn matches_at(text: &str, range: &Range<usize>, query: &str, match_case: bool) -> bool {
     let selected = &text[char_to_byte(text, range.start)..char_to_byte(text, range.end)];
@@ -102,6 +125,19 @@ pub fn replace_all(text: &str, query: &str, replacement: &str, match_case: bool)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn find_all_gives_char_ranges_inside_the_window() {
+        let text = "é Cat, cat; concat\ncAt";
+        assert_eq!(find_all(text, "cat", 0..text.chars().count(), false), vec![2..5, 7..10, 15..18, 19..22]);
+        assert_eq!(find_all(text, "cat", 0..text.chars().count(), true), vec![7..10, 15..18]);
+        // Only what lies entirely inside the window, counted from the start of the text.
+        assert_eq!(find_all(text, "cat", 3..18, false), vec![7..10, 15..18]);
+        assert_eq!(find_all(text, "cat", 3..17, false), vec![7..10]);
+        assert_eq!(find_all("aaaa", "aa", 0..4, true), vec![0..2, 2..4], "matches don't overlap");
+        assert!(find_all(text, "", 0..5, false).is_empty());
+        assert!(find_all(text, "dog", 0..500, false).is_empty(), "a window past the end is fine");
+    }
 
     #[test]
     fn counts_lines() {

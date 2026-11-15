@@ -22,7 +22,7 @@ use crate::tools::{self, TextTool};
 use crate::terminal::Terminal;
 use crate::i18n::{tr, tr_fill};
 use crate::settings::{self, Language, Theme};
-use crate::{emoji, glow, mcp, notes, text_utils, title_bar};
+use crate::{emoji, glow, mcp, notes, session, text_utils, title_bar};
 
 mod agent_tools;
 
@@ -66,6 +66,10 @@ enum Action {
 }
 
 /// How long after the notes change they are saved.
+/// Behind every occurrence of what the find bar searches for.
+const MATCH_HIGHLIGHT: egui::Color32 = egui::Color32::from_rgba_premultiplied(120, 95, 0, 110);
+/// Behind the occurrence that is selected: the one Find Next stopped at.
+const CURRENT_MATCH_HIGHLIGHT: egui::Color32 = egui::Color32::from_rgba_premultiplied(225, 120, 0, 200);
 const AUTOSAVE_DELAY: Duration = Duration::from_secs(1);
 /// How often the open files are checked for changes made by other programs.
 const DISK_CHECK_INTERVAL: Duration = Duration::from_secs(1);
@@ -214,6 +218,34 @@ impl EditorWindow {
             window.pending_select = Some(0..0);
         }
         window
+    }
+
+    /// Opens the files this window showed the last time, those that are still there.
+    fn restore(&mut self, remembered: session::Window) {
+        let active = remembered.files.get(remembered.active).cloned();
+        for file in remembered.files.iter().filter(|file| file.is_file()) {
+            self.open_path(file.clone());
+        }
+        if let Some(active) = active.filter(|file| file.is_file()) {
+            self.open_path(active); // already open: shows its tab
+        }
+        self.dialog = None; // a file that can't be read is passed over too, without a word
+    }
+
+    /// The files to open again the next time: the documents that have one.
+    fn session(&self) -> session::Window {
+        let has_file = |doc: &&Document| doc.path.is_some();
+        let files: Vec<PathBuf> = self
+            .docs
+            .iter()
+            .filter_map(|doc| doc.path.as_deref())
+            .map(|file| std::path::absolute(file).unwrap_or_else(|_| file.to_path_buf()))
+            .collect();
+        let active = match self.docs.get(self.active) {
+            Some(doc) if doc.path.is_some() => self.docs[..self.active].iter().filter(has_file).count(),
+            _ => files.len(), // an untitled document is showing: no file is marked
+        };
+        session::Window { files, active }
     }
 
     /// An egui id that is unique to this window (panels, dialogs).
@@ -805,6 +837,8 @@ impl EditorWindow {
     fn editor(&mut self, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
         let soft_wrap = self.soft_wrap;
         let scroll_to_selection = std::mem::take(&mut self.scroll_to_selection);
+        // While the find bar is open, every occurrence of its text is highlighted.
+        let searched = (self.find.visible && !self.find.query.is_empty()).then(|| (self.find.query.clone(), self.find.match_case));
         let doc = self.doc();
         let id = editor_id(doc);
         let font = egui::FontId::monospace(14.0);
@@ -828,6 +862,8 @@ impl EditorWindow {
             .scope_builder(egui::UiBuilder::new().max_rect(text_area), |ui| {
                 scroll_area.id_salt(id).auto_shrink(false).show(ui, |ui| {
                     let wrap_width = if soft_wrap { ui.available_width() } else { f32::INFINITY };
+                    // A place under the text for the highlights, which need the laid out text.
+                    let highlights = ui.painter().add(egui::Shape::Noop);
                     let output = egui::TextEdit::multiline(&mut doc.text)
                         .id(id)
                         .code_editor()
@@ -836,6 +872,10 @@ impl EditorWindow {
                         .desired_width(wrap_width)
                         .min_size(egui::vec2(0.0, text_area.height()))
                         .show(ui);
+                    if let Some((query, match_case)) = &searched {
+                        let shapes = match_highlights(ui, &output, &doc.text, query, *match_case, &doc.selection);
+                        ui.painter().set(highlights, shapes);
+                    }
                     if scroll_to_selection {
                         let cursor = output.galley.pos_from_cursor(CCursor::new(doc.selection.start));
                         ui.scroll_to_rect(cursor.translate(output.galley_pos.to_vec2()), Some(egui::Align::Center));
@@ -1065,6 +1105,52 @@ impl EditorWindow {
     }
 }
 
+/// The rectangles to paint behind the occurrences of `query` that are in view.
+fn match_highlights(
+    ui: &egui::Ui,
+    output: &egui::text_edit::TextEditOutput,
+    text: &str,
+    query: &str,
+    match_case: bool,
+    selection: &Range<usize>,
+) -> Vec<egui::Shape> {
+    let galley = &output.galley;
+    // Only the rows in view are searched, so a long document costs no more than a short one.
+    let visible = ui.clip_rect().translate(-output.galley_pos.to_vec2());
+    let margin = query.chars().count();
+    let first = galley.cursor_from_pos(egui::vec2(0.0, visible.top())).index.0.saturating_sub(margin);
+    let last = galley.cursor_from_pos(egui::vec2(f32::MAX, visible.bottom())).index.0 + margin;
+
+    let mut shapes = Vec::new();
+    for found in text_utils::find_all(text, query, first..last, match_case) {
+        let color = if found == *selection { CURRENT_MATCH_HIGHLIGHT } else { MATCH_HIGHLIGHT };
+        let start = galley.pos_from_cursor(CCursor::new(found.start));
+        let end = galley.pos_from_cursor(CCursor::new(found.end));
+        let mut rows = Vec::new();
+        if start.top() == end.top() {
+            rows.push(egui::Rect::from_min_max(start.left_top(), end.left_bottom()));
+        } else {
+            // Soft wrap folded the line inside the occurrence: one rectangle per row,
+            // from the characters' own places.
+            let mut from = start;
+            let mut to = start;
+            for index in found.start + 1..=found.end {
+                let next = galley.pos_from_cursor(CCursor::new(index));
+                if next.top() != from.top() {
+                    rows.push(egui::Rect::from_min_max(from.left_top(), egui::pos2(to.left() + to.height() * 0.6, to.bottom())));
+                    from = next;
+                }
+                to = next;
+            }
+            rows.push(egui::Rect::from_min_max(from.left_top(), to.left_bottom()));
+        }
+        for row in rows.into_iter().filter(|row| row.width() > 0.0) {
+            shapes.push(egui::Shape::rect_filled(row.translate(output.galley_pos.to_vec2()), 2.0, color));
+        }
+    }
+    shapes
+}
+
 /// Makes `new` the current settings, switching the theme right away.
 /// Returns the message to show if they couldn't be written to disk.
 fn apply_settings(ctx: &egui::Context, new: settings::Settings) -> Option<String> {
@@ -1252,9 +1338,47 @@ pub struct EditorApp {
     agent_server: Option<mcp::Server>,
     /// Why it couldn't start (the port is taken, usually).
     agent_server_error: Option<String>,
+    /// Where the open files are remembered (see `session.rs`); nowhere in the tests.
+    session_file: Option<PathBuf>,
+    /// What that file says, to write it only when the open files change.
+    saved_session: Option<String>,
 }
 
 impl EditorApp {
+    /// Starts with the files that were open the last time, as `session_file` remembers
+    /// them, then opens `paths`. Remembered files that are gone are passed over.
+    pub fn restoring(session_file: PathBuf, paths: Vec<PathBuf>) -> Self {
+        let mut app = Self::new(Vec::new());
+        let remembered = session::load(&session_file).into_iter().filter(|window| window.files.iter().any(|file| file.is_file()));
+        for (index, window) in remembered.enumerate() {
+            if index > 0 {
+                app.windows.push(EditorWindow::new(app.next_window_id, Vec::new()));
+                app.next_window_id += 1;
+            }
+            app.windows[index].restore(window);
+        }
+        for path in paths {
+            app.windows[0].open_path(path);
+        }
+        app.session_file = Some(session_file);
+        app
+    }
+
+    /// Writes down which files are open, when that changed.
+    fn remember_session(&mut self) {
+        let Some(file) = &self.session_file else { return };
+        // Quitting closes the tabs one by one: what was open before is what to remember.
+        if self.quitting || self.windows.iter().any(|window| window.closing) {
+            return;
+        }
+        let windows: Vec<session::Window> = self.windows.iter().map(EditorWindow::session).collect();
+        let text = session::format(&windows);
+        if self.saved_session.as_deref() != Some(&text) {
+            let _ = session::save(file, &text); // not worth interrupting anyone if it fails
+            self.saved_session = Some(text);
+        }
+    }
+
     pub fn new(paths: Vec<PathBuf>) -> Self {
         Self {
             windows: vec![EditorWindow::new(0, paths)],
@@ -1264,6 +1388,8 @@ impl EditorApp {
             confirm_quit: false,
             agent_server: None,
             agent_server_error: None,
+            session_file: None,
+            saved_session: None,
         }
     }
 
@@ -1395,6 +1521,8 @@ impl eframe::App for EditorApp {
             index += 1;
             keep
         });
+
+        self.remember_session();
 
         // Only the main window is left and it has closed its tabs too: exit.
         if self.windows.len() == 1 && self.windows[0].docs.is_empty() {
@@ -1585,6 +1713,106 @@ mod tests {
 
         std::fs::remove_file(&clean).unwrap();
         std::fs::remove_file(&edited).unwrap();
+    }
+
+    /// Draws `window` offscreen and returns how many rectangles of `color` it painted.
+    fn count_highlights(window: &mut EditorWindow, ctx: &egui::Context, color: egui::Color32) -> usize {
+        fn count(shape: &egui::Shape, color: egui::Color32) -> usize {
+            match shape {
+                egui::Shape::Rect(rect) => usize::from(rect.fill == color),
+                egui::Shape::Vec(shapes) => shapes.iter().map(|shape| count(shape, color)).sum(),
+                _ => 0,
+            }
+        }
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1000.0, 700.0))),
+            ..Default::default()
+        };
+        let mut output = ctx.run_ui(input, |ui| {
+            window.ui(ui);
+        });
+        output.textures_delta.clear(); // nothing draws them offscreen
+        output.shapes.iter().map(|clipped| count(&clipped.shape, color)).sum()
+    }
+
+    #[test]
+    fn the_find_bar_highlights_every_occurrence() {
+        let ctx = egui::Context::default();
+        let mut window = EditorWindow::new(0, Vec::new());
+        window.docs[0].text = "one Two\ntwo three two\n".to_owned();
+        assert_eq!(count_highlights(&mut window, &ctx, MATCH_HIGHLIGHT), 0, "no find bar, no highlight");
+
+        window.find.visible = true;
+        window.find.query = "two".to_owned();
+        assert_eq!(count_highlights(&mut window, &ctx, MATCH_HIGHLIGHT), 3);
+        assert_eq!(count_highlights(&mut window, &ctx, CURRENT_MATCH_HIGHLIGHT), 0, "none is selected yet");
+
+        // Find Next selects one: it gets the stronger colour, the others keep theirs.
+        window.find_next(&ctx, true);
+        assert_eq!(window.docs[0].selection, 4..7);
+        assert_eq!(count_highlights(&mut window, &ctx, CURRENT_MATCH_HIGHLIGHT), 1);
+        assert_eq!(count_highlights(&mut window, &ctx, MATCH_HIGHLIGHT), 2);
+
+        window.find.match_case = true;
+        assert_eq!(count_highlights(&mut window, &ctx, MATCH_HIGHLIGHT), 2, "“Two” no longer counts");
+
+        window.find.visible = false;
+        assert_eq!(count_highlights(&mut window, &ctx, MATCH_HIGHLIGHT), 0, "gone with the find bar");
+    }
+
+    #[test]
+    fn the_open_files_are_remembered_and_the_missing_ones_passed_over() {
+        let dir = std::env::temp_dir().join(format!("rusty-text-session-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = |name: &str| dir.join(name);
+        for name in ["a.txt", "b.txt", "c.txt", "d.txt"] {
+            std::fs::write(file(name), name).unwrap();
+        }
+        let session_file = file("session");
+        let remembered = [
+            session::Window { files: vec![file("a.txt"), file("gone.txt"), file("b.txt")], active: 2 },
+            session::Window { files: vec![file("gone too.txt")], active: 0 },
+            session::Window { files: vec![file("c.txt")], active: 0 },
+        ];
+        std::fs::write(&session_file, session::format(&remembered)).unwrap();
+
+        let titles = |window: &EditorWindow| window.docs.iter().map(Document::title).collect::<Vec<_>>();
+        let mut app = EditorApp::restoring(session_file.clone(), vec![file("d.txt")]);
+        assert_eq!(app.windows.len(), 2, "the window whose only file is gone doesn't come back");
+        assert_eq!(titles(&app.windows[0]), ["a.txt", "b.txt", "d.txt"]);
+        assert_eq!(app.windows[0].active, 2, "a file asked for now shows, rather than the remembered tab");
+        assert!(app.windows[0].dialog.is_none(), "not a word about the missing file");
+        assert_eq!(titles(&app.windows[1]), ["c.txt"]);
+
+        let mut app_without_new_files = EditorApp::restoring(session_file.clone(), Vec::new());
+        assert_eq!(app_without_new_files.windows[0].active, 1, "the tab that was showing shows again");
+        app_without_new_files.remember_session();
+
+        // What is open now is what the next start gets.
+        app.remember_session();
+        let expected = [
+            session::Window { files: vec![file("a.txt"), file("b.txt"), file("d.txt")], active: 2 },
+            session::Window { files: vec![file("c.txt")], active: 0 },
+        ];
+        assert_eq!(std::fs::read_to_string(&session_file).unwrap(), session::format(&expected));
+
+        // Quitting closes the tabs one by one, and must not forget them.
+        app.quit();
+        app.windows[0].docs.clear();
+        app.remember_session();
+        assert_eq!(std::fs::read_to_string(&session_file).unwrap(), session::format(&expected));
+
+        // Nothing but an untitled document: nothing to remember.
+        let mut empty = EditorApp::restoring(session_file.clone(), Vec::new());
+        empty.windows.truncate(1);
+        empty.windows[0].docs = vec![Document::untitled()];
+        empty.windows[0].active = 0;
+        empty.remember_session();
+        assert_eq!(std::fs::read_to_string(&session_file).unwrap(), "");
+        assert_eq!(titles(&EditorApp::restoring(session_file.clone(), Vec::new()).windows[0]), ["untitled text"]);
+
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

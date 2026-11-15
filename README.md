@@ -14,9 +14,10 @@ How to use it: [docs/USER_MANUAL.md](docs/USER_MANUAL.md).
 - On macOS the app draws its title bar: the traffic lights, the app's name, then the menus
 - Tabs: New / Open / Close (⌘N ⌘O ⌘W), New Window (⇧⌘N), Save / Save As (⌘S ⇧⌘S),
   unsaved-changes prompts, drag and drop files onto the window
+- Reopens the files that were open when you quit (kept in `~/.rustytext/session`)
 - Files changed by another program reload on their own (it asks first if you have unsaved changes)
 - Line-number gutter, monospaced font, soft wrap
-- Find & Replace (⌘F, ⌥⌘F, ⌘G, ⇧⌘G, ⌘E), Go to Line (⌘J)
+- Find & Replace (⌘F, ⌥⌘F, ⌘G, ⇧⌘G, ⌘E) with every match highlighted, Go to Line (⌘J)
 - Status bar: line, column, line count, char count
 - Right-click menu in the text: cut/copy/paste, text tools, word count
 - Edit ▸ Emoji: emoji grids by category
@@ -104,6 +105,7 @@ Linux programs, each with the manual, the license and the notices.
 - `src/title_bar.rs` — the app-drawn title bar on macOS: traffic lights, app name, menus (tested)
 - `src/app.rs` — UI: title bar and menus, tabs, editor + line-number gutter, find bar, status bar, dialogs
 - `src/open_requests.rs` — files macOS asks the app to open (Finder double-click, Dock drop)
+- `src/session.rs` — the files that were open, to open them again at the next start (tested)
 - `src/document.rs` — one open file: load, save, dirty flag
 - `src/notes.rs` — your notes file: where it lives and the daily date line (tested)
 - `src/settings.rs` — your preferences: theme, language, default folder, and their file (tested)

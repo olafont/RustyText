@@ -11,6 +11,7 @@ mod i18n;
 mod mcp;
 mod notes;
 mod open_requests;
+mod session;
 mod settings;
 mod terminal;
 mod text_utils;
@@ -66,7 +67,11 @@ fn main() -> eframe::Result {
             open_requests::wake(&creation_context.egui_ctx);
             let mut paths = paths;
             paths.extend(open_requests::take());
-            Ok(Box::new(app::EditorApp::new(paths)))
+            // The files that were open the last time come back first.
+            Ok(Box::new(match session::path() {
+                Some(session_file) => app::EditorApp::restoring(session_file, paths),
+                None => app::EditorApp::new(paths),
+            }))
         }),
     )
 }

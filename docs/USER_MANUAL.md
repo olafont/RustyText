@@ -49,8 +49,12 @@ no installer. On Linux the build needs a few system libraries first; the list is
 
 ### First run
 
-Open RustyText. It starts with one empty document, called *untitled text*, and the cursor in
-it: type.
+Open RustyText. The first time, it starts with one empty document, called *untitled text*,
+and the cursor in it: type.
+
+After that, it starts with the files that were open when you quit, in the same tabs and
+windows, on the tab that was showing. A file that has since been moved or deleted is left
+out, without a message. Documents that were never saved to a file are not remembered.
 
 To open files as it starts, give them on the command line:
 
@@ -145,6 +149,8 @@ Find ▸ Find… (⌘F) opens the find bar above the editor.
 
 - Type what to look for and press Return, or click ▶, to select the next match; ◀ selects the
   previous one. Without the bar: Find Next (⌘G) and Find Previous (⇧⌘G).
+- While the bar is open, every match in view is highlighted, as you type. The one that is
+  selected has a stronger colour.
 - The search wraps around: after the last match comes the first.
 - **Match case** makes capitals matter. Otherwise `note` also finds `Note` and `NOTE`.
 - Find ▸ Use Selection for Find (⌘E) puts the selected text in the find field.
@@ -335,12 +341,13 @@ The shortcuts are also shown beside each command in the menus.
 
 ## 13. Where RustyText keeps things
 
-Both files are in the `.rustytext` folder of your home folder, and are plain text.
+These files are in the `.rustytext` folder of your home folder, and are plain text.
 
 | File | Holds |
 | --- | --- |
 | `~/.rustytext/notes` | The Forever Note |
 | `~/.rustytext/settings` | Your preferences, one `key = value` per line |
+| `~/.rustytext/session` | The files that were open, one per line, to open them again |
 
 A settings file looks like this:
 
