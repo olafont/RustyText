@@ -3,6 +3,11 @@
 A small text editor, in Rust with [egui](https://github.com/emilk/egui)/eframe.
 Runs on macOS, Windows and Linux.
 
+Download: [the latest release](https://github.com/olafont/RustyText/releases/latest), for macOS
+(Apple silicon and Intel), Windows and Linux.
+
+To build it yourself:
+
     cargo run -- [file ...]        # debug build
     cargo run --release -- [file ...]
     cargo test
