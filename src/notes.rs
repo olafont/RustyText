@@ -1,4 +1,4 @@
-//! Your notes: `~/.rustytext/notes`, a running log opened with Tools ▸ Forever Note.
+//! Your notes: `~/.rustytext/notes`, a running log opened with View ▸ Forever Note.
 //!
 //! - The first time the notes are opened on a given day, a date line is added
 //!   at the end, so each day's notes start under their own heading.

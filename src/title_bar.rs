@@ -10,17 +10,12 @@
 //!
 //! The approach is Marine Data Simulator's (`crates/app/src/ui/title_bar.rs`).
 
-use eframe::egui::{self, Color32, Id, PointerButton, Rect, Sense, Ui, UiBuilder, ViewportBuilder, ViewportCommand, pos2};
+use eframe::egui::{self, Id, PointerButton, Rect, Sense, Ui, UiBuilder, ViewportBuilder, ViewportCommand, pos2};
 
 /// Room for the macOS traffic lights at the bar's left end.
 pub const TRAFFIC_LIGHTS: f32 = 76.0;
 
-pub const HEIGHT: f32 = 32.0;
-
-/// The bar's colour: a shade away from the window's, as an OS title bar is.
-pub fn fill(ui: &Ui) -> Color32 {
-    if ui.visuals().dark_mode { Color32::from_rgb(17, 18, 20) } else { Color32::from_rgb(226, 229, 234) }
-}
+pub const HEIGHT: f32 = 34.0;
 
 /// True when the app draws the title bar (macOS).
 pub const fn integrated() -> bool {

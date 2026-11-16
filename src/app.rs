@@ -22,9 +22,13 @@ use crate::tools::{self, TextTool};
 use crate::terminal::Terminal;
 use crate::i18n::{tr, tr_fill};
 use crate::settings::{self, Language, Theme};
-use crate::{emoji, glow, mcp, notes, session, text_utils, title_bar};
+use crate::{glow, look, mcp, notes, session, text_utils, title_bar};
 
 mod agent_tools;
+mod chrome;
+
+#[cfg(test)]
+pub use chrome::texts as ribbon_texts;
 
 /// Everything the user can ask for, from a menu or a keyboard shortcut.
 /// Both paths produce an `Action`, and `perform()` is the one place that handles them.
@@ -63,6 +67,10 @@ enum Action {
     /// Reopen your notes (after their tab was closed) as the leftmost tab.
     OpenNotes,
     Preferences,
+    /// Put the keyboard in the ribbon's command search.
+    CommandSearch,
+    /// Open the user manual.
+    Help,
 }
 
 /// How long after the notes change they are saved.
@@ -94,6 +102,7 @@ const SHORTCUTS: &[(KeyboardShortcut, Action)] = &[
     (cmd_shift(Key::N), Action::NewWindow),
     (cmd_shift(Key::S), Action::SaveAs),
     (cmd_shift(Key::G), Action::FindPrevious),
+    (cmd_shift(Key::P), Action::CommandSearch),
     (cmd_alt(Key::F), Action::FindReplace),
     (cmd(Key::N), Action::New),
     (cmd(Key::O), Action::Open),
@@ -181,13 +190,19 @@ struct EditorWindow {
     /// which a window that is still being created doesn't have yet).
     pending_select: Option<Range<usize>>,
     /// Your notes are open in some window (set by `EditorApp` every frame);
-    /// Tools ▸ Forever Note only appears when they aren't.
+    /// View ▸ Forever Note can only be used when they aren't.
     notes_open: bool,
     /// Why agents can't connect although Preferences allow it (set by `EditorApp` every frame).
     agent_server_error: Option<String>,
     window_title: String,
     /// When to look next for files changed by other programs.
     next_disk_check: Instant,
+    /// The ribbon's tab and command search (see `chrome.rs`).
+    ribbon: chrome::Ribbon,
+    /// The app's icon, drawn in the window bar.
+    logo: Option<egui::TextureHandle>,
+    /// The tab the window bar last scrolled to, to follow the active one when it changes.
+    bar_tab_shown: usize,
 }
 
 impl EditorWindow {
@@ -209,6 +224,9 @@ impl EditorWindow {
             agent_server_error: None,
             window_title: String::new(),
             next_disk_check: Instant::now(),
+            ribbon: chrome::Ribbon::default(),
+            logo: None,
+            bar_tab_shown: 0,
         };
         for path in paths {
             window.open_path(path);
@@ -332,6 +350,8 @@ impl EditorWindow {
             Action::ToggleTerminal => self.toggle_terminal(ctx),
             Action::OpenNotes => self.open_notes(),
             Action::Preferences => self.dialog = Some(Dialog::Preferences),
+            Action::CommandSearch => self.ribbon.focus_search = true,
+            Action::Help => ctx.open_url(egui::OpenUrl::new_tab(chrome::MANUAL_URL)),
             Action::WordCount => {
                 let doc = &self.docs[self.active];
                 let of_selection = !doc.selection.is_empty();
@@ -675,116 +695,6 @@ impl EditorWindow {
 
     // MARK: - Drawing
 
-    /// The menus: File, Edit, Find, Text and Tools, side by side in `ui`.
-    fn menus(&self, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
-        ui.menu_button(tr("File"), |ui| {
-            menu_item(ui, tr("New"), Action::New, actions);
-            menu_item(ui, tr("Open…"), Action::Open, actions);
-            menu_item(ui, tr("New Window"), Action::NewWindow, actions);
-            ui.separator();
-            menu_item(ui, tr("Close"), Action::CloseTab, actions);
-            menu_item(ui, tr("Save"), Action::Save, actions);
-            menu_item(ui, tr("Save As…"), Action::SaveAs, actions);
-            ui.separator();
-            menu_item(ui, tr("Preferences…"), Action::Preferences, actions);
-            ui.separator();
-            menu_item(ui, tr("Quit"), Action::Quit, actions);
-        });
-        ui.menu_button(tr("Edit"), |ui| {
-            menu_item(ui, tr("Undo"), Action::Undo, actions);
-            menu_item(ui, tr("Redo"), Action::Redo, actions);
-            ui.separator();
-            menu_item(ui, tr("Cut"), Action::Cut, actions);
-            menu_item(ui, tr("Copy"), Action::Copy, actions);
-            menu_item(ui, tr("Paste"), Action::Paste, actions);
-            menu_item(ui, tr("Select All"), Action::SelectAll, actions);
-            ui.separator();
-            ui.menu_button(tr("Emoji"), |ui| {
-                for &(category, emojis) in emoji::CATEGORIES {
-                    ui.menu_button(tr(category), |ui| emoji_grid(ui, emojis, actions));
-                }
-            });
-        });
-        ui.menu_button(tr("Find"), |ui| {
-            menu_item(ui, tr("Find…"), Action::Find, actions);
-            menu_item(ui, tr("Find & Replace…"), Action::FindReplace, actions);
-            menu_item(ui, tr("Find Next"), Action::FindNext, actions);
-            menu_item(ui, tr("Find Previous"), Action::FindPrevious, actions);
-            menu_item(ui, tr("Use Selection for Find"), Action::UseSelectionForFind, actions);
-        });
-        ui.menu_button(tr("Text"), |ui| {
-            menu_item(ui, tr("Go to Line…"), Action::GoToLine, actions);
-            menu_item(ui, &checkable(self.soft_wrap, tr("Soft Wrap")), Action::ToggleSoftWrap, actions);
-        });
-        ui.menu_button(tr("Tools"), |ui| {
-            text_tool_menus(ui, actions);
-            ui.separator();
-            menu_item(ui, tr("Word Count…"), Action::WordCount, actions);
-            ui.separator();
-            let label = checkable(self.glow_visible(), tr("Markdown"));
-            menu_item_enabled(ui, &label, Action::ToggleGlow, self.is_markdown(), actions);
-            if !self.notes_open && notes::path().is_some() {
-                menu_item(ui, tr("Forever Note"), Action::OpenNotes, actions);
-            }
-            menu_item(ui, &checkable(self.terminal_visible, tr("Terminal")), Action::ToggleTerminal, actions);
-        });
-    }
-
-    /// What sits at the right end of the bar, laid out right to left: Preferences and,
-    /// when the app draws the title bar, the document's name (the OS would show it there).
-    fn bar_right_end(&self, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
-        ui.add_space(8.0);
-        let gear = egui::Button::new(egui::RichText::new("⚙").size(15.0)).frame_when_inactive(false);
-        let tip = format!("{} ({})", tr("Preferences"), ui.ctx().format_shortcut(&cmd(Key::Comma)));
-        if ui.add(gear).on_hover_text(tip).clicked() {
-            actions.push(Action::Preferences);
-        }
-        if title_bar::integrated() && let Some(doc) = self.docs.get(self.active) {
-            ui.add_space(8.0);
-            let mark = if doc.shows_unsaved_mark() { "• " } else { "" };
-            ui.add(egui::Label::new(egui::RichText::new(format!("{mark}{}", doc.title())).weak()).truncate());
-        }
-    }
-
-    /// The title bar (macOS): the app's name, then the menus; the right end as above.
-    fn title_bar(&self, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
-        ui.label(egui::RichText::new("RustyText").strong());
-        ui.separator();
-        egui::MenuBar::new().ui(ui, |ui| {
-            self.menus(ui, actions);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| self.bar_right_end(ui, actions));
-        });
-    }
-
-    /// The menu bar, where the OS keeps its own title bar (Windows, Linux).
-    fn menu_bar(&self, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
-        egui::MenuBar::new().ui(ui, |ui| {
-            self.menus(ui, actions);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| self.bar_right_end(ui, actions));
-        });
-    }
-
-    fn tab_bar(&mut self, ui: &mut egui::Ui) {
-        let mut close = None;
-        ui.horizontal_wrapped(|ui| {
-            for (index, doc) in self.docs.iter().enumerate() {
-                // The Forever Note's tab is just "fn", whatever its file is called.
-                let title = if doc.notes { "fn".to_owned() } else { doc.title() };
-                let label = format!("{}{}", if doc.shows_unsaved_mark() { "• " } else { "" }, title);
-                if ui.selectable_label(index == self.active, label).clicked() {
-                    self.active = index;
-                }
-                if ui.small_button("×").on_hover_text(tr("Close")).clicked() {
-                    close = Some(index);
-                }
-                ui.separator();
-            }
-        });
-        if let Some(index) = close {
-            self.request_close(index);
-        }
-    }
-
     fn find_bar(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         ui.horizontal(|ui| {
@@ -821,16 +731,6 @@ impl EditorWindow {
                 }
             });
         }
-    }
-
-    fn status_bar(&mut self, ui: &mut egui::Ui) {
-        let doc = self.doc();
-        let (line, column) = text_utils::line_col(&doc.text, doc.selection.end);
-        let lines = text_utils::line_count(&doc.text);
-        let chars = doc.text.chars().count();
-        let numbers = [line, column, lines, chars].map(|number| number.to_string());
-        let status = tr_fill("L: {}  C: {}    {} lines  {} chars    UTF-8", &numbers.each_ref().map(String::as_str));
-        ui.label(egui::RichText::new(status).monospace().weak());
     }
 
     /// The text area, with a line-number gutter on its left.
@@ -903,7 +803,8 @@ impl EditorWindow {
 
         // Number each row that starts a new line (soft-wrapped rows get no number).
         let painter = ui.painter_at(gutter);
-        painter.rect_filled(gutter, 0.0, ui.visuals().faint_bg_color);
+        let rounded_left = egui::CornerRadius { nw: look::CARD_RADIUS - 1, sw: look::CARD_RADIUS - 1, ne: 0, se: 0 };
+        painter.rect_filled(gutter, rounded_left, ui.visuals().faint_bg_color);
         painter.vline(gutter.right(), gutter.y_range(), ui.visuals().widgets.noninteractive.bg_stroke);
         let color = ui.visuals().weak_text_color();
         let mut line = 1;
@@ -1196,11 +1097,6 @@ fn text_tool_menus(ui: &mut egui::Ui, actions: &mut Vec<Action>) {
     }
 }
 
-/// A menu label with a checkmark in front while its option is on.
-fn checkable(checked: bool, label: &str) -> String {
-    if checked { format!("✔ {label}") } else { label.to_owned() }
-}
-
 /// A menu item labelled with its keyboard shortcut.
 fn menu_item(ui: &mut egui::Ui, label: &str, action: Action, actions: &mut Vec<Action>) {
     menu_item_enabled(ui, label, action, true, actions);
@@ -1266,22 +1162,26 @@ impl EditorWindow {
             });
         }
 
+        look::window_border(ui);
         if !self.docs.is_empty() {
-            if title_bar::integrated() {
-                let frame = egui::Frame::NONE.fill(title_bar::fill(ui));
-                let drag_id = self.ui_id("title_bar_drag");
-                egui::Panel::top(self.ui_id("title_bar")).frame(frame).exact_size(title_bar::HEIGHT).show(ui, |ui| {
-                    let bar = ui.max_rect();
-                    title_bar::show(ui, bar, drag_id, |ui| self.title_bar(ui, &mut actions));
-                });
-            } else {
-                egui::Panel::top(self.ui_id("menu")).show(ui, |ui| self.menu_bar(ui, &mut actions));
-            }
-            egui::Panel::top(self.ui_id("tabs")).show(ui, |ui| self.tab_bar(ui));
+            // The window's own colour shows between the cards.
+            ui.painter().rect_filled(ui.max_rect(), 0.0, look::palette(ui).window);
+            // The window bar, then the cards: each panel holds one, a gap away from its neighbours.
+            let bar_frame = egui::Frame::NONE.fill(look::bar::FILL);
+            let drag_id = self.ui_id("title_bar_drag");
+            egui::Panel::top(self.ui_id("title_bar")).frame(bar_frame).show_separator_line(false).exact_size(chrome::BAR_HEIGHT).show(ui, |ui| {
+                chrome::bar_contents(ui, drag_id, |ui| self.window_bar(ui, &mut actions));
+            });
+            let panel = |panel: egui::Panel, frame: egui::Frame| panel.frame(frame).show_separator_line(false);
+            panel(egui::Panel::top(self.ui_id("ribbon")), look::gutter(true, true, true, false)).show(ui, |ui| self.ribbon(ui, &mut actions));
             if self.find.visible {
-                egui::Panel::top(self.ui_id("find")).show(ui, |ui| self.find_bar(ui));
+                panel(egui::Panel::top(self.ui_id("find")), look::gutter(true, true, true, false)).show(ui, |ui| {
+                    look::card(ui).inner_margin(egui::Margin::symmetric(10, 6)).show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        self.find_bar(ui);
+                    });
+                });
             }
-            egui::Panel::bottom(self.ui_id("status")).show(ui, |ui| self.status_bar(ui));
             if self.terminal.as_ref().is_some_and(Terminal::has_exited) {
                 // The shell ended (e.g. `exit`): close the pane; reopening starts a new shell.
                 self.terminal = None;
@@ -1290,19 +1190,25 @@ impl EditorWindow {
             if self.terminal_visible {
                 let (panel_id, view_id) = (self.ui_id("terminal"), self.ui_id("terminal_view"));
                 if let Some(terminal) = &mut self.terminal {
-                    egui::Panel::bottom(panel_id)
+                    // At the very bottom, with no card, title or gap: the shell gets the window's whole width.
+                    panel(egui::Panel::bottom(panel_id), egui::Frame::NONE)
                         .resizable(true)
                         .default_size(Terminal::height_for_rows(ui, TERMINAL_START_ROWS))
                         .min_size(80.0)
-                        .frame(egui::Frame::NONE)
                         .show(ui, |ui| terminal.show(ui, view_id));
                 }
             }
+            // The status bar sits above the terminal, a gap away from it.
+            panel(egui::Panel::bottom(self.ui_id("status")), look::gutter(true, true, false, true)).show(ui, |ui| self.status_card(ui));
             if self.glow_visible() {
                 let text = &self.docs[self.active].text;
-                glow::panel(self.ui_id("glow"), ui.available_width()).show(ui, |ui| glow::show(ui, text));
+                let frame = look::gutter(false, true, true, true);
+                glow::panel(self.ui_id("glow"), ui.available_width()).frame(frame).show_separator_line(false).show(ui, |ui| glow::show(ui, text));
             }
-            egui::CentralPanel::default_margins().show(ui, |ui| self.editor(ui, &mut actions));
+            egui::CentralPanel::no_frame().frame(look::gutter(true, true, true, true)).show(ui, |ui| {
+                let page = look::card(ui).fill(look::palette(ui).page);
+                page.show(ui, |ui| self.editor(ui, &mut actions));
+            });
         }
         self.show_dialog(&ctx);
 

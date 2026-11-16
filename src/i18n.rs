@@ -67,6 +67,19 @@ const FRENCH: &[(&str, &str)] = &[
     ("Markdown", "Markdown"),
     ("Forever Note", "Forever Note"),
     ("Terminal", "Terminal"),
+    // Window bar, ribbon
+    ("Help", "Aide"),
+    ("Home", "Accueil"),
+    ("Insert", "Insertion"),
+    ("View", "Affichage"),
+    ("Clipboard", "Presse-papiers"),
+    ("Go", "Aller"),
+    ("Count", "Compter"),
+    ("Show", "Afficher"),
+    ("Notes", "Notes"),
+    ("Window", "Fenêtre"),
+    ("Search commands", "Rechercher une commande"),
+    ("No command found", "Aucune commande trouvée"),
     // Text tools
     ("Change Case", "Changer la casse"),
     ("Lines", "Lignes"),
@@ -106,7 +119,6 @@ const FRENCH: &[(&str, &str)] = &[
     ("L: {}  C: {}    {} lines  {} chars    UTF-8", "L : {}  C : {}    {} lignes  {} caractères    UTF-8"),
     // Dialogs
     ("Go to Line", "Aller à la ligne"),
-    ("Go", "Aller"),
     ("Cancel", "Annuler"),
     ("Save changes to “{}” before closing?", "Enregistrer les modifications de « {} » avant de fermer ?"),
     ("Don’t Save", "Ne pas enregistrer"),
@@ -195,6 +207,8 @@ mod tests {
         let mut texts = translated_texts(include_str!("app.rs"));
         texts.extend(translated_texts(include_str!("document.rs")));
         texts.extend(translated_texts(include_str!("app/agent_tools.rs")));
+        texts.extend(translated_texts(include_str!("app/chrome.rs")));
+        texts.extend(crate::app::ribbon_texts());
         assert!(texts.len() > 50, "the texts in the source were found");
         // Texts that reach `tr` through a variable.
         texts.extend(TextTool::CASE.iter().chain(TextTool::LINES).chain(TextTool::WHITESPACE).map(|tool| tool.label()));

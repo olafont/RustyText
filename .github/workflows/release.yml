@@ -1,5 +1,5 @@
 # Builds the downloads of a release and attaches them to it: the macOS app for Apple silicon
-# and for Intel, and the Windows and Linux programs.
+# and for Intel (as a disk image and as a zip), and the Windows and Linux programs.
 #
 # Runs when a version tag is pushed (`git tag v0.2.0 && git push origin v0.2.0`), which
 # includes creating a release for a new tag on GitHub. If the tag has no release yet, one is
@@ -54,6 +54,8 @@ jobs:
           RUSTFLAGS: ${{ runner.os == 'Windows' && '-C target-feature=+crt-static' || '' }}
 
       # Each archive holds the app, the manual, the license and the third-party notices.
+      # On macOS there is also a disk image, which shows the app next to a link to
+      # Applications, to drag it there.
       - name: Package
         shell: bash
         run: |
@@ -64,6 +66,8 @@ jobs:
             macOS)
               ditto target/RustyText.app "dist/$DIR/RustyText.app"
               (cd dist && ditto -c -k --keepParent "$DIR" "$DIR.zip")
+              ln -s /Applications "dist/$DIR/Applications"
+              hdiutil create -volname "RustyText" -srcfolder "dist/$DIR" -fs HFS+ -format UDZO "dist/$DIR.dmg"
               ;;
             Windows)
               cp "target/${{ matrix.target }}/release/rusty-text.exe" "dist/$DIR/RustyText.exe"

@@ -40,7 +40,7 @@ impl TextTool {
         Self::NormalizeLineEndings,
     ];
 
-    pub fn label(self) -> &'static str {
+    pub const fn label(self) -> &'static str {
         match self {
             Self::Upper => "UPPERCASE",
             Self::Lower => "lowercase",

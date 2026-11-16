@@ -16,7 +16,8 @@ How to use it: [docs/USER_MANUAL.md](docs/USER_MANUAL.md).
 
 ## Features
 
-- On macOS the app draws its title bar: the traffic lights, the app's name, then the menus
+- A window bar with the File menu, Save / Undo / Redo and the documents' tabs (on macOS it is the title bar)
+- A ribbon for every command on the text (Home, Text, Insert, View), with a command search (⇧⌘P)
 - Tabs: New / Open / Close (⌘N ⌘O ⌘W), New Window (⇧⌘N), Save / Save As (⌘S ⇧⌘S),
   unsaved-changes prompts, drag and drop files onto the window
 - Reopens the files that were open when you quit (kept in `~/.rustytext/session`)
@@ -25,17 +26,17 @@ How to use it: [docs/USER_MANUAL.md](docs/USER_MANUAL.md).
 - Find & Replace (⌘F, ⌥⌘F, ⌘G, ⇧⌘G, ⌘E) with every match highlighted, Go to Line (⌘J)
 - Status bar: line, column, line count, char count
 - Right-click menu in the text: cut/copy/paste, text tools, word count
-- Edit ▸ Emoji: emoji grids by category
-- Tools: Change Case / Lines / Whitespace transforms (undoable), Word Count…
-- Tools ▸ Markdown: rendered Markdown pane beside the editor (`.md` files), shown when you open one
-- Tools ▸ Terminal (⌃`): your shell in a pane under the editor
+- Insert: emoji grids by category
+- Text: Change Case / Lines / Whitespace transforms (undoable), Word Count
+- View ▸ Markdown: rendered Markdown pane beside the editor (`.md` files), shown when you open one
+- View ▸ Terminal (⌃`): your shell in a pane under the editor
 - Forever Note: a running log that is always there (below)
 - Preferences (the ⚙ at the right of the title bar, or ⌘,): theme, language and default folder (below)
 - Agents: an MCP server, so that AI agents can read and edit your open documents (below)
 
 ## Forever Note
 
-Tools ▸ Forever Note opens your forever note, `~/.rustytext/forevernote`, as the leftmost tab: a running
+View ▸ Forever Note opens your forever note, `~/.rustytext/forevernote`, as the leftmost tab: a running
 log. The first time you open them each day, a date line (`--- Saturday, October 24, 2026 ---`)
 is added at the end, and the cursor goes to the end, ready to type. The notes
 save themselves a second after each change, and when their tab or the app closes.
@@ -76,6 +77,11 @@ while it is on.
 Builds `RustyText.app` (with the icon from `assets/icon.png`) into `/Applications`.
 `scripts/bundle.sh --target x86_64-apple-darwin` builds it for Intel Macs instead (and
 `aarch64-apple-darwin` for Apple silicon), into `target/RustyText.app`.
+With a "Developer ID Application" certificate in your keychain the app is signed with it, and
+`scripts/bundle.sh --notarize` also has Apple notarize it, so that other Macs open it without a
+warning; without a certificate it is signed ad hoc, for this Mac only. The script's first lines
+say how to set both up.
+
 The app declares itself an editor of Markdown and plain text files, so the Finder offers it
 under *Open with* for `.md` and `.txt` files; Get Info ▸ Open with ▸ Change All… makes it their
 default app.
@@ -99,8 +105,9 @@ Intel, Windows and Linux. Each binary is attached to the run as an artifact. (Th
 is made on an Apple silicon machine, so the tests run for Apple silicon only.)
 
 `.github/workflows/release.yml` builds the downloads of a release when a version tag is pushed,
-and attaches them to it: `RustyText.app` for Apple silicon and for Intel, and the Windows and
-Linux programs, each with the manual, the license and the notices.
+and attaches them to it: `RustyText.app` for Apple silicon and for Intel, each as a disk image
+(`.dmg`) and a zip, and the Windows and Linux programs, each with the manual, the license and
+the notices. The apps built there are signed ad hoc, not with a Developer ID.
 
     git tag v0.2.0 && git push origin v0.2.0
 
@@ -108,7 +115,9 @@ Linux programs, each with the manual, the license and the notices.
 
 - `src/main.rs` — parses arguments, opens the window
 - `src/title_bar.rs` — the app-drawn title bar on macOS: traffic lights, app name, menus (tested)
-- `src/app.rs` — UI: title bar and menus, tabs, editor + line-number gutter, find bar, status bar, dialogs
+- `src/app.rs` — UI: the window's layout, editor + line-number gutter, find bar, dialogs
+- `src/app/chrome.rs` — the window bar, the ribbon (its tabs, groups and tools are one table), the status bar (tested)
+- `src/look.rs` — fonts (IBM Plex), text sizes, colours of both themes, and the cards everything is drawn on (tested)
 - `src/open_requests.rs` — files macOS asks the app to open (Finder double-click, Dock drop)
 - `src/session.rs` — the files that were open, to open them again at the next start (tested)
 - `src/document.rs` — one open file: load, save, dirty flag
@@ -120,8 +129,8 @@ Linux programs, each with the manual, the license and the notices.
 - `src/text_utils.rs` — line/column math, find, replace (pure functions, tested)
 - `src/emoji.rs` — the emoji list shown in the Emoji menu
 - `src/tools.rs` — Tools menu: case, line and whitespace transforms, word count (tested)
-- `src/glow.rs` — Tools ▸ Markdown: renders Markdown like the `glow` terminal app (tested)
-- `src/terminal.rs` — Tools ▸ Terminal: your shell in a PTY, drawn from a vt100 screen (tested)
+- `src/glow.rs` — View ▸ Markdown: renders Markdown like the `glow` terminal app (tested)
+- `src/terminal.rs` — View ▸ Terminal: your shell in a PTY, drawn from a vt100 screen (tested)
 
 ## Limitations
 

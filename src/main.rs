@@ -8,6 +8,7 @@ mod document;
 mod emoji;
 mod glow;
 mod i18n;
+mod look;
 mod mcp;
 mod notes;
 mod open_requests;
@@ -55,14 +56,9 @@ fn main() -> eframe::Result {
         "RustyText",
         options,
         Box::new(|creation_context| {
-            // Everything 1pt larger than egui's defaults (menus, tabs, dialogs, status bar),
-            // in both light and dark mode.
+            // The fonts, text sizes and colours of the interface (see `look.rs`).
             creation_context.egui_ctx.set_theme(settings::get().theme.preference());
-            creation_context.egui_ctx.all_styles_mut(|style| {
-                for font in style.text_styles.values_mut() {
-                    font.size += 1.0;
-                }
-            });
+            look::install(&creation_context.egui_ctx);
             // Files double-clicked in the Finder come after those of the command line.
             open_requests::wake(&creation_context.egui_ctx);
             let mut paths = paths;

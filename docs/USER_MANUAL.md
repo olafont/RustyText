@@ -69,22 +69,29 @@ becomes a tab of its main window.
 
 ## 2. The window
 
-From top to bottom:
+The window has a pale background on which each part sits as a card. From top to bottom:
 
-- **Title bar** (macOS). After the red, yellow and green buttons come the app's name and the
-  menus: File, Edit, Find, Text and Tools. At the right end are the name of the document you
-  are in, with a • in front while it has unsaved changes, and the ⚙ button that opens
-  [Preferences](#10-preferences). Drag an empty part of the bar to move the window;
-  double-click it to zoom. On Windows and Linux the system's own title bar stays, and the
-  menus are in a bar just under it.
-- **Tabs.** One per open document. Click a tab to switch to it, × to close it. A • marks
-  unsaved changes.
+- **Window bar.** The dark strip across the top. From the left: the app's name, the **File**
+  menu, then Save, Undo and Redo as buttons, then one tab per open document. Click a tab to
+  switch to it; the one that is showing has a × to close it, and a • in front marks unsaved
+  changes. **+** starts a new document. At the right end are ⚙, which opens
+  [Preferences](#10-preferences), **?**, which opens this manual, and the version. On macOS
+  the bar is the window's title bar: drag an empty part of it to move the window, double-click
+  it to zoom. On Windows and Linux it sits under the system's own title bar.
+- **Ribbon.** Every command that acts on your text, as tools grouped under four tabs:
+  **Home** (clipboard, find, go to line), **Text** (the [text tools](#6-text-tools)),
+  **Insert** (emoji) and **View** (what the window shows). A tool that switches something on
+  stays highlighted while it is on. A group whose name has a ⌄ holds more commands: click the
+  name. This manual writes a tool as *tab ▸ tool*, for instance View ▸ Terminal.
+- **Search commands**, at the right of the ribbon's tabs (⇧⌘P). Type part of a command's name
+  and press Return to run the first one found, or click another in the list.
 - **Find bar**, while you are searching ([Find and replace](#5-find-and-replace)).
 - **Editor.** Your text, in a fixed-width font, with line numbers on the left.
 - **Markdown pane**, on the right, when it is on ([The Markdown pane](#7-the-markdown-pane)).
-- **Terminal**, under the editor, when it is on ([The terminal](#8-the-terminal)).
 - **Status bar.** The cursor's line (L) and column (C), the number of lines and characters in
   the document, and its encoding.
+- **Terminal**, at the very bottom, across the window's whole width, when it is on
+  ([The terminal](#8-the-terminal)).
 
 ### More than one window
 
@@ -133,19 +140,19 @@ be undone.
 Paste, Select All, Use Selection for Find, the text tools and Word Count. Right-clicking keeps
 the selection.
 
-**Emoji.** Edit ▸ Emoji shows emoji by category (Smileys, Gestures, Symbols, Animals & Nature,
-Food & Drink, Objects, Travel & Places). Click one to insert it at the cursor. They are drawn
+**Emoji.** The Insert tab has one tool per category of emoji (Smileys, Gestures, Symbols, Animals & Nature,
+Food & Drink, Objects, Travel & Places). Click a category, then an emoji to insert it at the cursor. They are drawn
 in one colour in the editor; the file holds the real emoji.
 
-**Go to a line.** Text ▸ Go to Line… (⌘J), type the line number, press Return. The line is
+**Go to a line.** Home ▸ Go to Line (⌘J), type the line number, press Return. The line is
 selected and scrolled into view.
 
-**Soft wrap.** Text ▸ Soft Wrap folds long lines at the window's edge instead of scrolling
+**Soft wrap.** View ▸ Soft Wrap folds long lines at the window's edge instead of scrolling
 sideways. Folded lines keep one line number. It is off when a window opens.
 
 ## 5. Find and replace
 
-Find ▸ Find… (⌘F) opens the find bar above the editor.
+Home ▸ Find (⌘F) opens the find bar above the editor.
 
 - Type what to look for and press Return, or click ▶, to select the next match; ◀ selects the
   previous one. Without the bar: Find Next (⌘G) and Find Previous (⇧⌘G).
@@ -153,12 +160,12 @@ Find ▸ Find… (⌘F) opens the find bar above the editor.
   selected has a stronger colour.
 - The search wraps around: after the last match comes the first.
 - **Match case** makes capitals matter. Otherwise `note` also finds `Note` and `NOTE`.
-- Find ▸ Use Selection for Find (⌘E) puts the selected text in the find field.
+- Home ▸ Find ⌄ ▸ Use Selection for Find (⌘E) puts the selected text in the find field.
 - If nothing matches, the selection stays where it is and the app asks for your attention
   (on macOS, its Dock icon bounces once).
 - **Done**, or Esc, closes the bar.
 
-Find ▸ Find & Replace… (⌥⌘F), or **Replace…** in the bar, adds a second row:
+Home ▸ Replace (⌥⌘F), or **Replace…** in the bar, adds a second row:
 
 - **Replace** replaces the selected match with the text in *With*, and selects the next one.
 - **Replace All** replaces every match in the document at once.
@@ -198,13 +205,13 @@ capital letters, so `helloWorld foo-bar` becomes `hello_world_foo_bar`.
 | Leading Spaces to Tabs | Replaces each 4 spaces at the start of a line with a tab |
 | Normalize Line Endings (LF) | Turns Windows (CRLF) and old Mac (CR) line endings into LF |
 
-**Word Count.** Tools ▸ Word Count… counts words, characters, characters without spaces, lines
+**Word Count.** Text ▸ Word Count counts words, characters, characters without spaces, lines
 and paragraphs, in the selection if there is one, otherwise in the document. A paragraph is a
 run of lines with no blank line between them.
 
 ## 7. The Markdown pane
 
-Tools ▸ Markdown shows the document rendered, in a pane on the right of the editor, in the
+View ▸ Markdown shows the document rendered, in a pane on the right of the editor, in the
 style of the `glow` terminal app: headings, bold and italics, lists, quotes, code, tables and
 links, on a dark background. It follows what you type.
 
@@ -214,12 +221,12 @@ links, on a dark background. It follows what you type.
   leaves it as you set it.
 - The pane starts at half the window's width. Drag its left edge to resize it.
 - Images are not shown; their place and address are.
-- Choose Tools ▸ Markdown again to hide it. While it is on, it shows whenever you switch to a
+- Choose View ▸ Markdown again to hide it. While it is on, it shows whenever you switch to a
   Markdown tab and hides for the others.
 
 ## 8. The terminal
 
-Tools ▸ Terminal (⌃`, with the Control key on every system) opens your shell in a pane under
+View ▸ Terminal (⌃`, with the Control key on every system) opens your shell in a pane under
 the editor: your login shell on macOS and Linux, `cmd.exe` on Windows.
 
 - The shell starts in the folder of the document you are in. For a document that has never
@@ -236,7 +243,7 @@ Each window has its own terminal.
 ## 9. The Forever Note
 
 The Forever Note is one note that is always there for you: a running log, kept in a single
-file. Open it with Tools ▸ Forever Note. Its tab is called **fn** and is always the leftmost.
+file. Open it with View ▸ Forever Note. Its tab is called **fn** and is always the leftmost.
 
 - The first time you open it each day, a line with the date is added at the end
   (`--- Saturday, October 24, 2026 ---`), so each day's notes sit under their own heading.
@@ -334,6 +341,7 @@ On Windows and Linux, read ⌘ as Ctrl and ⌥ as Alt.
 | ⌘G / ⇧⌘G | Find Next / Find Previous |
 | ⌘E | Use Selection for Find |
 | ⌘J | Go to Line… |
+| ⇧⌘P | Search commands |
 | ⌃` | Show or hide the terminal |
 | Esc | Close the find bar or a dialog |
 

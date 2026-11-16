@@ -55,6 +55,7 @@ pub fn show(ui: &mut egui::Ui, markdown: &str) {
 
     egui::Frame::new()
         .fill(palette::BACKGROUND)
+        .corner_radius(egui::CornerRadius::same(crate::look::CARD_RADIUS))
         .inner_margin(egui::Margin::symmetric(16, 12))
         .show(ui, |ui| {
             egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
